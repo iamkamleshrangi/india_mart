@@ -10,7 +10,7 @@ class IndiaMart():
         self.search_url = 'https://dir.indiamart.com/search.mp?ss={}?page_no={}'
         mongo = MongoClient('127.0.0.1',27017)
         db = mongo['india_mart']
-        self.con = db['records']
+        self.con = db['caustic_soda']
 
     def get_home(self,query, page_no):
         search_url = self.search_url.format('+'.join(query.split(' ')), page_no)
@@ -26,11 +26,13 @@ class IndiaMart():
         for shop in ul.find_all('li',{'id':re.compile('LST\d+|lst\d+')}):
             record = dict()
             desc_description = shop.find('div',{'class':'desc des_p'})
-            for ii in desc_description.find_all('p'):
-                ii = ii.text.strip()
-                key = ii.split(':')[0].strip()
-                value = ii.split(':')[1].strip()
-                record[key] = value
+            if desc_description:
+                for ii in desc_description.find_all('p'):
+                    ii = ii.text.strip()
+                    key = ii.split(':')[0].replace('.','').strip()
+                    value = ii.split(':')[1].strip()
+                    record[key] = value
+
             phone = shop.find('span',{'data-click':"MobileNo"}).text.replace('Call +91-','').strip()
             record['phone'] = phone
             raw = shop.find('div',{'class':"r-cl b-gry"})
@@ -55,14 +57,19 @@ class IndiaMart():
             if raw_truested:
                 truested = raw_truested.text.strip()
             record['truested'] = truested
-            print(record)
-            self.con.insert_one(record)
-            del record['_id']
-            print('')
+
+            product_name_raw = soup.find('span',{'data-click':"Prod0Name"})
+            product_name = ''
+            if product_name_raw:
+                product_name = product_name_raw.text.strip()
+            record['products'] = product_name            
+            if re.findall(r'caustic soda|Caustic Soda', product_name):
+                self.con.insert_one(record)
+                del record['_id']
 
     def pages(self):
         mininum = 0
-        maximum = 100
+        maximum = 100000
         query = 'caustic soda'
         for page_no in range(mininum, maximum):
             self.get_home(query,page_no)
