@@ -1,12 +1,16 @@
 import requests
 from bs4 import BeautifulSoup
 import re
+from pymongo import MongoClient
 
 class IndiaMart():
     def __init__(self):
         self.agent = requests.session()
         self.home_url = 'https://www.indiamart.com/'
         self.search_url = 'https://dir.indiamart.com/search.mp?ss={}?page_no={}'
+        mongo = MongoClient('127.0.0.1',27017)
+        db = mongo['india_mart']
+        self.con = db['records']
 
     def get_home(self,query, page_no):
         search_url = self.search_url.format('+'.join(query.split(' ')), page_no)
@@ -19,8 +23,8 @@ class IndiaMart():
     def parser(self, content):
         soup = BeautifulSoup(content, 'lxml')
         ul = soup.find('ul',{'class':'wlm'})
-        record = dict()
         for shop in ul.find_all('li',{'id':re.compile('LST\d+|lst\d+')}):
+            record = dict()
             desc_description = shop.find('div',{'class':'desc des_p'})
             for ii in desc_description.find_all('p'):
                 ii = ii.text.strip()
@@ -34,8 +38,12 @@ class IndiaMart():
             company_name = raw.find('h4',{'data-click':'CompanyName'})
             record['company_name'] = company_name.text.strip()
 
-            address = shop.find('p',{'data-rlocation':re.compile('([A-Za-z]+)')})
-            record['address'] = address.text.strip()
+            raw_address = shop.find('p',{'data-rlocation':re.compile('([A-Za-z]+)')})
+            address = ''
+            if raw_address:
+                address = raw_address.text.strip()
+
+            record['address'] = address
             pprice = shop.find('span',{'class':"prc cur"})
             price = ''
             if pprice:
@@ -48,6 +56,8 @@ class IndiaMart():
                 truested = raw_truested.text.strip()
             record['truested'] = truested
             print(record)
+            self.con.insert_one(record)
+            del record['_id']
             print('')
 
     def pages(self):
